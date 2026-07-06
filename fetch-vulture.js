@@ -18,21 +18,21 @@ const fs = require('fs');
     console.warn('⚠️ cop-locations not found');
   });
   
-  // ดึงแค่ชื่อ location
+  // ดึงแค่ชื่อ location (ตัด "Grid" ออก)
   const locations = await page.evaluate(() => {
-    const copElement = document.getElementById('cop-locations');
-    if (!copElement) return 'No data found';
+    const items = [];
+    const listItems = document.querySelectorAll('#cop-locations li');
     
-    const names = [];
-    copElement.querySelectorAll('generic').forEach(el => {
-      const text = el.innerText?.trim();
-      // ดึงแค่ชื่อ (WESTMORE, BRONCO, etc) ไม่เอา coordinates และ status
-      if (text && !text.includes(',') && text !== 'Active' && text !== 'CoP') {
-        names.push(text);
+    listItems.forEach(li => {
+      const text = li.innerText?.trim();
+      if (text) {
+        // ตัด "Westmore (Grid 168:161)" เหลือแค่ "Westmore"
+        const name = text.split('(')[0].trim();
+        items.push(name);
       }
     });
     
-    return names.length > 0 ? names.join(', ') : 'No locations found';
+    return items.length > 0 ? items.join(', ') : 'No locations found';
   });
   
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
