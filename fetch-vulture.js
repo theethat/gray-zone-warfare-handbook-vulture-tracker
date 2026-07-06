@@ -66,7 +66,7 @@ function sendToAPI(cops) {
     });
     
     const options = {
-      hostname: 'YOUR_API_HOST', // แปลงให้เป็น host จริง
+      hostname: 'gray-zone-warfare-handbook-api-production.up.railway.app', // แปลงให้เป็น host จริง
       port: 443,
       path: '/api/v1/where-is-vulture/available',
       method: 'POST',
