@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
+const https = require('https');
 
 (async () => {
   console.log('🎯 Starting Vulture data fetch...');
@@ -18,7 +19,7 @@ const fs = require('fs');
     console.warn('⚠️ cop-locations not found');
   });
   
-  // ดึงแค่ชื่อ location (ตัด "Grid" ออก)
+  // ดึงชื่อ location
   const locations = await page.evaluate(() => {
     const items = [];
     const listItems = document.querySelectorAll('#cop-locations li');
@@ -26,23 +27,71 @@ const fs = require('fs');
     listItems.forEach(li => {
       const text = li.innerText?.trim();
       if (text) {
-        // ตัด "Westmore (Grid 168:161)" เหลือแค่ "Westmore"
-        const name = text.split('(')[0].trim();
+        const name = text.replace(/^•\s*/, '').split('(')[0].trim();
         items.push(name);
       }
     });
     
-    return items.length > 0 ? items.join(', ') : 'No locations found';
+    return items;
   });
   
-  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
-  const logEntry = `[${timestamp}] ${locations}\n`;
-  
-  fs.appendFileSync('vulture-log.txt', logEntry);
-  console.log('✅ Data saved:', locations);
-  
   await browser.close();
+  
+  console.log('✅ Locations found:', locations);
+  
+  // ยิงข้อมูลไปยัง API
+  if (locations.length > 0) {
+    await sendToAPI(locations);
+  } else {
+    console.error('❌ No locations found to send');
+    process.exit(1);
+  }
 })().catch(err => {
   console.error('❌ Error:', err);
   process.exit(1);
 });
+
+// ฟังก์ชัน POST ไปยัง API
+function sendToAPI(cops) {
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.VULTURE_API_KEY;
+    if (!apiKey) {
+      reject(new Error('VULTURE_API_KEY not set'));
+    }
+    
+    const payload = JSON.stringify({
+      data: {
+        cops: cops
+      }
+    });
+    
+    const options = {
+      hostname: 'YOUR_API_HOST', // แปลงให้เป็น host จริง
+      port: 443,
+      path: '/api/v1/where-is-vulture/available',
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+        'Content-Length': payload.length
+      }
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        console.log(`✅ API Response (${res.statusCode}):`, data);
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve();
+        } else {
+          reject(new Error(`API returned ${res.statusCode}`));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
