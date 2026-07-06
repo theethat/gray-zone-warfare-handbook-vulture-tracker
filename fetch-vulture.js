@@ -39,24 +39,38 @@ const https = require('https');
   
   console.log('✅ Locations found:', locations);
   
+  // บันทึกข้อมูลลง log
+  logEvent('FETCH_COMPLETE', { locations });
+  
   // ยิงข้อมูลไปยัง API
   if (locations.length > 0) {
     await sendToAPI(locations);
   } else {
-    console.error('❌ No locations found to send');
+    logEvent('ERROR', { message: 'No locations found' });
     process.exit(1);
   }
 })().catch(err => {
+  logEvent('ERROR', { message: err.message });
   console.error('❌ Error:', err);
   process.exit(1);
 });
+
+// ฟังก์ชันบันทึก log
+function logEvent(eventType, data) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${eventType} ${JSON.stringify(data)}\n`;
+  fs.appendFileSync('vulture-log.txt', logEntry);
+  console.log(logEntry);
+}
 
 // ฟังก์ชัน POST ไปยัง API
 function sendToAPI(cops) {
   return new Promise((resolve, reject) => {
     const apiKey = process.env.VULTURE_API_KEY;
+    
     if (!apiKey) {
-      reject(new Error('VULTURE_API_KEY not set'));
+      logEvent('ERROR', { message: 'VULTURE_API_KEY not found' });
+      reject(new Error('VULTURE_API_KEY environment variable not found'));
     }
     
     const payload = JSON.stringify({
@@ -66,7 +80,7 @@ function sendToAPI(cops) {
     });
     
     const options = {
-      hostname: 'gray-zone-warfare-handbook-api-production.up.railway.app', // แปลงให้เป็น host จริง
+      hostname: 'gray-zone-warfare-handbook-api-production.up.railway.app',
       port: 443,
       path: '/api/v1/where-is-vulture/available',
       method: 'POST',
@@ -77,20 +91,36 @@ function sendToAPI(cops) {
       }
     };
     
+    logEvent('API_REQUEST', { 
+      host: options.hostname,
+      path: options.path,
+      payload: payload
+    });
+    
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        console.log(`✅ API Response (${res.statusCode}):`, data);
+        logEvent('API_RESPONSE', { 
+          statusCode: res.statusCode,
+          body: data
+        });
+        
         if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log('✅ Success');
           resolve();
         } else {
-          reject(new Error(`API returned ${res.statusCode}`));
+          reject(new Error(`API returned status ${res.statusCode}`));
         }
       });
     });
     
-    req.on('error', reject);
+    req.on('error', err => {
+      logEvent('API_ERROR', { message: err.message });
+      console.error('❌ Request failed:', err.message);
+      reject(err);
+    });
+    
     req.write(payload);
     req.end();
   });
