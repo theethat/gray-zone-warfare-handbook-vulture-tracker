@@ -1,12 +1,11 @@
+permissions:
+  contents: write  # ✅ เพิ่มนี่ เพื่อให้ workflow มีสิทธิ์ push
+
 name: Fetch Vulture Daily
 
-# ตั้งเวลาให้รันเองวันละครั้ง
 on:
   schedule:
-    # 08:00 UTC ทุกวัน (= 15:00 Bangkok time)
     - cron: '0 8 * * *'
-  
-  # ให้รันได้เมื่อกด manual ใน Actions tab
   workflow_dispatch:
 
 jobs:
@@ -14,25 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Clone repo มาลงเครื่อง
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # ✅ อัปเกรดเป็น v4
       
-      # Step 2: ตั้ง Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4  # ✅ อัปเกรดเป็น v4
         with:
           node-version: '18'
       
-      # Step 3: ติดตั้ง Puppeteer
       - name: Install dependencies
         run: npm install puppeteer
       
-      # Step 4: รัน script
       - name: Fetch Vulture data
         run: node fetch-vulture.js
       
-      # Step 5: Push ข้อมูลไปกลับยัง repo
       - name: Commit and push
         run: |
           git config --local user.email "action@github.com"
