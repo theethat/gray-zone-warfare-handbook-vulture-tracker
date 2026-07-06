@@ -1,5 +1,5 @@
 permissions:
-  contents: write  # ✅ เพิ่มนี่ เพื่อให้ workflow มีสิทธิ์ push
+  contents: write
 
 name: Fetch Vulture Daily
 
@@ -12,25 +12,20 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     
+    env:
+      VULTURE_API_KEY: ${{ secrets.VULTURE_API_KEY }}  # ✅ ใช้ secret
+    
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # ✅ อัปเกรดเป็น v4
+        uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: actions/setup-node@v4  # ✅ อัปเกรดเป็น v4
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
       
       - name: Install dependencies
         run: npm install puppeteer
       
-      - name: Fetch Vulture data
+      - name: Fetch and send Vulture data
         run: node fetch-vulture.js
-      
-      - name: Commit and push
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add vulture-log.txt
-          git commit -m "📍 Update Vulture locations - $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
-          git push
