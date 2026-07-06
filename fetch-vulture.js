@@ -42,16 +42,22 @@ const https = require('https');
   // บันทึกข้อมูลลง log
   logEvent('FETCH_COMPLETE', { locations });
   
-  // ยิงข้อมูลไปยัง API
+  // ยิงข้อมูลไปยัง API (รอให้เสร็จ)
   if (locations.length > 0) {
-    await sendToAPI(locations);
+    try {
+      await sendToAPI(locations);
+      logEvent('SUCCESS', { message: 'Data sent to API successfully' });
+    } catch (apiErr) {
+      logEvent('API_FAILED', { message: apiErr.message });
+      throw apiErr;
+    }
   } else {
     logEvent('ERROR', { message: 'No locations found' });
     process.exit(1);
   }
 })().catch(err => {
-  logEvent('ERROR', { message: err.message });
-  console.error('❌ Error:', err);
+  logEvent('FATAL_ERROR', { message: err.message });
+  console.error('❌ Fatal Error:', err);
   process.exit(1);
 });
 
@@ -59,8 +65,13 @@ const https = require('https');
 function logEvent(eventType, data) {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] ${eventType} ${JSON.stringify(data)}\n`;
-  fs.appendFileSync('vulture-log.txt', logEntry);
-  console.log(logEntry);
+  
+  try {
+    fs.appendFileSync('vulture-log.txt', logEntry);
+    console.log('✅ LOGGED:', logEntry.trim());
+  } catch (err) {
+    console.error('❌ LOG_WRITE_ERROR:', err.message);
+  }
 }
 
 // ฟังก์ชัน POST ไปยัง API
@@ -68,15 +79,27 @@ function sendToAPI(cops) {
   return new Promise((resolve, reject) => {
     const apiKey = process.env.VULTURE_API_KEY;
     
+    console.log('🔑 Checking API key...');
+    
     if (!apiKey) {
-      logEvent('ERROR', { message: 'VULTURE_API_KEY not found' });
+      logEvent('ERROR', { message: 'VULTURE_API_KEY not found in environment' });
       reject(new Error('VULTURE_API_KEY environment variable not found'));
+      return;
     }
+    
+    console.log('✅ API key found');
     
     const payload = JSON.stringify({
       data: {
         cops: cops
       }
+    });
+    
+    console.log('📤 Preparing API request...');
+    logEvent('API_REQUEST', { 
+      host: 'gray-zone-warfare-handbook-api-production.up.railway.app',
+      path: '/api/v1/where-is-vulture/available',
+      payload: payload
     });
     
     const options = {
@@ -91,16 +114,15 @@ function sendToAPI(cops) {
       }
     };
     
-    logEvent('API_REQUEST', { 
-      host: options.hostname,
-      path: options.path,
-      payload: payload
-    });
-    
     const req = https.request(options, (res) => {
       let data = '';
+      
+      console.log(`📨 API Response Status: ${res.statusCode}`);
+      
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
+        console.log('📥 Response body:', data);
+        
         logEvent('API_RESPONSE', { 
           statusCode: res.statusCode,
           body: data
@@ -110,14 +132,14 @@ function sendToAPI(cops) {
           console.log('✅ Success');
           resolve();
         } else {
-          reject(new Error(`API returned status ${res.statusCode}`));
+          reject(new Error(`API returned status ${res.statusCode}: ${data}`));
         }
       });
     });
     
     req.on('error', err => {
+      console.error('❌ Request Error:', err.message);
       logEvent('API_ERROR', { message: err.message });
-      console.error('❌ Request failed:', err.message);
       reject(err);
     });
     
